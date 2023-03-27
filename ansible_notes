@@ -1,0 +1,1296 @@
+### ANSIBLE
+ --------------
+
+1.1 Playbook run options
+
+Check Mode or Dry Run
+
+$ ansible-playbook playbook.yml --check
+
+Start at
+
+$ ansible-playbook playbook.yaml --start-at-tast "Start httpd service"
+
+Tags
+
+$ ansible-playbook playbook.yml --tags "install"
+
+$ ansible-playbook playbook.yml --skip-tags "install"
+
+---
+
+---
+- hosts: web1
+  tasks:
+    - name: Create file /root/myfile.txt
+      file:
+        path: /root/myfile.txt
+        state: touch
+
+- hosts: web2
+  tasks:
+    - name: Create /tmp/testfile.txt
+      file:
+        path: /tmp/testfile.txt
+        state: touch
+
+---
+- hosts: web1
+  tasks:
+    - name: Create file /root/myfile.txt
+      file:
+        path: /root/myfile.txt
+        state: touch
+
+--- Creating a system user
+
+---
+- hosts: web1
+  tasks:
+    - name: Create user angel
+      user:
+        name: angel
+
+1.2 : Ansible Facts
+
+Facts are details concerning the host upon which the playbook is running
+
+gather_Facts: no
+
+
+Identify the OS distribution_version of the localhost using ansible facts :
+$ ansible -m setup localhost | grep distribution_version
+
+
+Identify the OS distribution of the web1 host using ansible facts
+$ ansible -i inventory -m setup web1 | grep distribution
+
+Retreive all the facts of the web1 server and store them in a file at /home/thor/playbooks/web/web-facts.txt
+$ ansible -i inventory -m setup web1 >> /home/thor/playbooks/web/web-facts.txt
+
+
+
+1.3 : Configuration Files
+
+Central configuration file can be found under :
+/etc/ansible/ansible.cfg
+
+When multiple playbooks are written and stored in different folders, and require different configurations, we might make a copy of the central configuration and duplicate in the subfolders.
+
+/opt/web-playbooks
+	/opt/web-playbooks/ansible.cfg
+
+
+/opt/db-playbooks
+	/opt/db-playbooks/ansible.cfg
+
+/opt/network-playbooks
+	/opt/network-playbooks/ansible.cfg
+
+
+Ansible, configuration file can also be set using environment variables
+
+$ANSIBLE_CONFIG=/opt/ansible-web.cfg
+
+First priority are the parameters found in the files:
+1- Environment varibles; $ANSIBLE_CONFIG=/opt/ansible-web.cfg
+2- user directory config files /opt/web-playbooks/ansible.cfg
+3- Configuration file found in the user home directory .ansible.cfg
+4- the central configuration file
+
+
+ANSIBLE CONFIGURATION VARIABLES
+
+$ ANSIBLE_GATHERING=explicit	ansible-playbook playbook.yml
+
+$ export ANSIBLE_GATHERING=explicit
+$ ansible-playbook playbook.yml
+
+
+
+VIEW CONFIGURATION
+$ ansible-config list 		# Lists all configurations
+
+$ ansible-config view		# shows the current config file
+
+$ ansible-config dump		# shows teh current setting
+
+
+---
+
+$ export ANSIBLE_GATHERING=explicity
+
+
+
+
+
+
+
+
+
+Chap 2 : Install and configure
+
+2.1:  Install required packages, create static host inventory file , create config file
+
+
+Control node : where all playbooks, inventory and ansible software are installed.
+
+You can not install ansible on windows, but windows machines can be targets
+
+install :
+
+Redhat or CentOS : $ sudo yum install ansible
+                 : $ sudo pip install ansible
+
+
+You might instal epel-release first
+
+$ sudo yum install epel-release
+$ sudo yum install python-pip
+
+$ sudo pip install ansible
+
+$ sudo pip install ansible==2.4
+
+For an upgrade, you might lauch the following commands
+
+$ sudo pip install --upgrade ansible
+
+
+Ansible Inventory
+
+default location at : /etc/ansible/hosts
+default configuration : /etc/ansible/ansible.cfg
+
+You can override default configuration file settings by creating an ansible.cfg file along with your playbooks
+
+
+
+
+2.3 : Create and distribute SSH keys to managed nodes
+
+Configure the manage nodes
+
+/etc/ansible/hosts
+web1 ansible_host=172.20.1.100 ansible_ssh_pass=Passw0rd
+web2 ansible_host=172.20.1.101 ansible_ssh_pass=Passw0rd
+
+
+Configure SSH key-based authentication between the managed nodes and the controler
+
+Create the ssh-key on control node
+
+$ ssh-keygen
+
+Copy to managed node
+$ ssh-copy-id
+
+Now modifty the inventory file
+/etc/ansible/hosts
+
+web1 ansible_host=172.20.1.100 ansible_user=user1
+web2 ansible_host=172.20.1.101 ansible_user=user1
+
+
+If the ssh public key is found in some other path than default, user the ansible_ssh_private_key_file in hosts
+
+/etc/ansible/hosts
+web1 ansible_host=172.20.1.100 ansible_user=user1 ansible_ssh_private_key_file=/some-path/private-key
+
+ssh-copy-id -i /home/thor/.ssh/ansible ansible@web1
+
+Now you can modify inventory file to use ssh key
+$ ansible -m ping -i inventory web1
+
+
+
+
+
+2.4 : Validate a working configuration using ad-hoc Ansible commands
+
+ad-hoc commands can be launched instead of writting playbooks for simple tasks.
+
+
+To see if ansible can establish an ssh connectivity
+$ ansible -m ping all
+
+To launch a command on nodes
+$ ansible -a 'cat /etc/hosts' all
+
+Privilege escalation
+$ ansible -a 'yum install nginx' all --become-user nginx
+
+Ansible version
+$ ansible --version 
+
+Gather facts, using the setup module
+$ ansible -m setup localhost 
+
+Perform ping on localhost
+$ ansible -m ping localhost
+
+Perform ping on all host found the inventory file
+$ ansible -m ping -i /home/thor/playbooks/inventory all
+$ ansible -m ping -i /home/thor/playbooks/inventory all > /tmp/ansible_all.txt
+
+To launch an ad-hoc command on remote host
+$ ansible -a 'date' -i /home/thor/playbooks/ all
+
+
+
+
+2.5: Create simple shell scripts that can run ad-hoc ansible commands
+
+shell-script.sh
+--
+export ANSIBLE_GATHERING=explicit
+
+ansible -m ping all
+
+ansible -a 'cat /etc/hosts' all
+
+ansible-playbook playbook.yml
+
+$ sh shell-script.sh
+
+$ chmod 755 shel-script.sh
+
+$ ./shell-script.sh
+
+
+--
+
+Ad-hoc command to copy
+
+ansible -m copy -a "src=/etc/resolv.conf dest=/tmp/resolv.conf" -i /home/thor/playbooks/inventory node00
+
+
+
+
+host_details.sh
+---
+export ANSIBLE_GATHERING=explicit
+
+ansible -a 'hostname' -i /home/thor/playbooks/inventory all
+
+ansible -m copy -a "src=/etc/resolv.conf dest=/tmp/resolv.conf" -i /home/thor/playbooks/inventory node00
+
+---
+playbook.yml
+--
+
+- hosts: all
+  tasks:
+    - name: Read file content
+      shell: cat /etc/redhat-release
+
+
+host_data.sh
+--
+export ANSIBLE_GATHERING=False
+
+ansible -m shell -a 'uptime' -i /home/thor/playbooks/inventory all
+
+ansible-playbook -i inventory playbook.yml -vv
+
+
+
+
+
+2.6 : Privilege Escalation
+
+Privileges are a set of permissions a user has to perform actions on a system.
+
+Become Super user (sudo)
+
+Become another user (su)
+
+Become Method - sudo (pfexec, doas, ksu, runas)
+
+inventory
+--
+lamp-dev1 ansible_host=172.20.1.100 ansibe_user=admin
+
+Add the become: yes variable to the playbook, to switch as sudo. So that the play runs with admin privileges
+
+become_method : doas
+
+To switch to a user, become_user: bob
+
+This can be added to the inventory file
+
+
+inventory
+--
+lamp-dev1 ansible_host=172.20.1.100 ansibe_user=admin ansible_become=yes ansible_become_user=nginx
+
+This can also be set in the ansible configuration
+
+/etc/ansible/ansible.cfg
+---
+become = True
+become_methode = doas
+become_user = nginx
+
+
+
+This can also be passed as command line
+
+Command line
+---
+$ansible-playbook --become --become-method=doas --become-user=nginx
+
+
+
+NB: Anything configured in the command line argument, has the highest precedence. 
+    Anything configured in the default configuration has the lowest precedence
+
+
+At times, escalating requires a sudo passowrd, you can require ansible to prompt for password during privilege escalation by using the --ask-become-pass option
+
+$ ansible-playbook --become --become-methode=doas --become-user=nginx --ask-become-pass
+
+
+-- Practice
+
+ansible-playbook -i inventory file.yml 
+
+---
+- hosts: web2
+  become: true
+  become_user: admin
+  gather_facts: no
+  tasks:
+    - name: Create a blank file
+      file:
+        path: /home/admin/test.txt
+        state: touch
+
+
+inventory file :
+
+web2.sh
+--
+#!/bin/bash
+ansible-playbook -i inventory file.yml --ask-become-pass
+
+[db_servers]
+lamp-db  ansible_host=172.20.1.101 ansible_user=maria ansible_ssh_pass=maria
+
+[web_server]
+lamp-web ansible_host=172.20.1.100 ansible_user=john ansible_ssh_pass=john
+
+
+- Additional infos on inventory file
+
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword
+
+[web_servers]
+lamp-web ansible_host=172.20.1.100 ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+
+-- inventory with keys
+
+Generating the keys
+ssh-keygen -f /home/thor/.ssh/john
+ssh-keygen -f /home/thor/.ssh/maria
+
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword ansible_ssh_private_key_file=/home/thor/.ssh/maria
+
+[web_servers]
+lamp-web ansible_host=172.20.1.100 ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git ansible_ssh_private_key_file=/home/thor/.ssh/john
+
+
+copying to host
+
+ssh-copy-id -i /home/thor/.ssh/maria maria@lamp-db
+
+ssh-copy-id -i /home/thor/.ssh/john john@lamp-web
+
+
+-- deploy-lamp-stack.yml
+
+- name: Deploy lamp stack application
+  become: True
+  hosts: all
+  tasks:
+    - name: Install common dependencies
+      yum:
+        name:
+          - libselinux-python
+          - libsemanage-python
+          - firewalld
+        state: installed
+
+$ ansible-playbook -i inventory deploy-lamp-stack.yml
+
+
+
+
+
+Chap 3: Ansible Modules
+=========================
+
+
+
+Packages
+
+---
+- name: Install web on CentOS
+  hosts: all
+  tasks:
+  - yum:
+      name: httpd
+      state: installed
+
+---
+- name: Install multiple packages
+  hosts: all
+  tasks:
+  - yum: name=sudo state=latest
+  - yum: name=vsftpd-2.2.2 state=present allow_downgrade=yes
+
+
+
+Service
+---
+- name: Start httpd service
+  hosts: all
+  tasks:
+  - service:
+      name: httpd
+      state: started
+      enabled: yes
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: Make changes in Apache config
+      replace:
+        path: /etc/httpd/conf/httpd.conf
+        regexp: "^Listen 80"
+        replace: "Listen 443"
+    - name: Restart APACHE
+      service:
+        name: httpd
+        state: restarted 
+
+
+-- practical example, httpd service reloads after files are copied
+
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: Copy Apache welcome file
+      copy:
+        src: index.html
+        dest: /var/www/html/index.html
+    - service:
+        name: httpd
+        state: reloaded
+
+
+Firewall Rules
+---
+- name: Add firewalld rule
+  hosts: all
+  tasks:
+  - firewalld:
+      port: 8080/tcp
+      service: http
+      source: 192.0.0.0/24
+      zone: public
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+---
+- name: Allow web2 host to connect on web1
+  hosts: web1
+  tasks:
+  - firewalld:
+      zone: internal
+      source: 172.20.1.101
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+---
+- name: block 161/udp on web1
+  hosts: web1
+  tasks:
+  - firewalld:
+      zone: block
+      port: 161/udp
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+To verify
+$ firewall-cmd --list-ports --zone=block
+
+---
+
+---
+- name: install firewalld
+  hosts: web1
+  tasks:
+  - name: install firewalld
+    yum:
+      name: firewalld
+      state: installed
+  - name: start firewalld at every boot
+    service:
+      name: firewalld
+      enabled: yes
+      state: started
+
+---
+- name: enable https connection from ansible controller machine
+  hosts: web1
+  tasks:
+  - firewalld:
+      zone: internal
+      source: 172.20.1.2
+      service: https
+      state: enabled
+      permanent: yes
+      immediate: yes
+
+Storage (LVG)
+---
+- hosts: all
+  tasks:
+  - name: Create LVM Volume Group
+    lvg:
+      vg: vg1
+      pvs: /dev/sdb1,/dev/sdb2
+
+  - name: Create LVM Volume
+    lvol:
+      vg: vg1
+      lv: lvol1
+      size: 2g
+
+
+Filesystem
+
+---
+- hosts: all
+  tasls:
+  - name: Create Filesystem
+    filesystem:
+      fstype: ext4
+      dev: /dev/vg1/lvol1
+      opts: -cc
+
+  - name: Mount Filesystem
+    mount: 
+      fstype: ext4
+      src: /dev/vg1/lvol1
+      path: /opt/app
+      state: mounted
+
+File
+---
+- hosts: all
+  tasks:
+  - name: Create Directory
+    file:
+      path: /opt/app/web
+      state: directory
+
+  - name: Create File
+    file:
+      path: /opt/app/web/index.html
+      state: touch
+      owner: app-owner
+      group: app-owner
+      mode: '0644'
+
+---
+- name: Create index.html on web1 with content
+  hosts: web1
+  tasks:
+  - lineinfile:
+      path: /var/www/html/index.html
+      line: 'This line was added using Ansible lineinfile module!'
+      create: yes
+
+--- 
+- name: find some files and copy them
+  hosts: web1
+  tasks:
+    - name: Find files
+      find:
+        paths: /opt/data
+        recurse: yes
+        age: 2m
+        size: 1m
+      register: file
+
+    - name: Copy files
+      command: "cp {{ item.path }} /opt"
+      with_items: "{{ file.files }}"
+
+---
+- name: block in file
+  hosts: web1
+  tasks:
+  - name: block in file
+    blockinfile:
+      path: /var/www/html/index.html
+      owner: apache
+      group: apache
+      insertbefore: BOF
+      content: | 
+        Welcome to KodeKloud!
+        This is Ansible Lab. 
+
+Archive
+---
+- hosts: all
+  tasks:
+  - name: Compress a folder
+    archive:
+      path: /opt/app/web
+      dest: /tmp/web.gz
+      format: zip|tar|bz2|xz|gz
+
+  - name: Uncompress a folder
+    unarchive:
+    src: /tmp/web.gz
+    dest: /opt/app/web
+
+    remote_src: yes // this indicates, that the compressed file is already on the remote host
+---
+- name: Extract zip file
+  hosts: web1
+  tasks:
+  - name: Extract zip file to /tmp
+    unarchive:
+      src: /home/thor/playbooks/local.zip
+      dest: /tmp
+
+---
+- name: Uncompress tar ball
+  hosts: web1
+  tasks:
+  - name: uncompress the tar file
+    unarchive:
+      src: /root/data.tar.gz
+      dest: /srv
+      remote_src: yes
+  - name: remove the archive
+    file:
+      path: /root/data.tar.gz
+      state: absent
+---
+- name: Download zip from github
+  hosts: web1
+  tasks:
+  - name: Download and extract from igt hub
+    unarchive:
+      src: https://github.com/kodekloudhub/Hello-World/archive/master.zip
+      dest: /root
+      remote_src: yes
+---
+- name: Compress multiple files
+  hosts: web1
+  tasks:
+  - archive:
+     path:
+      - /root/file1.txt
+      - /usr/local/share/file2.txt
+      - /var/log/lastlog
+     dest: /root/files.tar.bz2
+     format: bz2
+----
+- name: Install and configure nginx on web1
+  hosts: web1
+  tasks:
+  - name: Install nginx
+    yum: name=nginx state=installed
+  - name: Start nginx
+    service: name=nginx state=started enabled=yes
+
+  - name: Extract nginx.zip
+    unarchive: src=/root/nginx.zip dest=/usr/share/nginx/html remote_src=yes
+
+  - name: Replace line in index.html
+    replace:
+     path: /usr/share/nginx/html/index.html
+     regexp: This is sample html code
+     replace: This is KodeKloud Ansible lab
+
+Cron
+---
+- hosts: all
+  tasks:
+  - name: Create a scheduled task
+    cron:
+      name: Run daily health report
+      job: sh /opt/scripts/health.sh
+
+      month: 2
+      day: 19
+      hour: 8
+      minute: 10
+      weekday: *
+
+---
+- name: Clear log
+  hosts: node00
+  tasks:
+  - name: clear log
+    cron:
+      name: Run clear log
+      job: echo " " > /var/log/lastlog
+      hour: 0
+      minute: 0
+---
+- name: Create a cron job to run free.sh script
+  hosts: node00
+  tasks:
+   - name: Create cron job
+     cron:
+       name: "Free Memory Check"
+       minute: "0"
+       hour: "*/2"
+       job: "sh /root/free.sh"
+
+---
+- name: Create a cron job to run free.sh script
+  hosts: node00
+  tasks:
+   - name: Create cron job
+     cron:
+       name: "Free Memory Check"
+       minute: "0"
+       hour: "*/2"
+       job: "sh /root/free.sh"
+
+---
+- name: remove cron job from node00
+  hosts: node00
+  tasks:
+  - name: Remove cron job
+    cron:
+      name: "Check Memory"
+      state: absent
+---
+---
+- name: remove cron job from node00
+  hosts: node00
+  tasks:
+  - name: Remove cron job
+    cron:
+      name: "Check Memory"
+      state: absent
+---
+- name: Cleanup /tmp after every reboot
+  hosts: node00
+  tasks:
+   - cron:
+      name: cleanup
+      job: rm -rf /tmp/*
+      special_time: reboot
+
+Users and Groups
+---
+- hosts: all
+  tasks:
+  - name: Create a user Maria
+    user:
+      name: maria
+      uid: 1001
+      group: developers
+      shell: /bin/bash
+
+  - name: Create a group
+    group:
+      name: developers
+
+---
+- name: Create a user
+  hosts: all
+  tasks:
+  - name: Create the group
+    group:
+      name: admin
+      state: present
+  - name: Create a user
+    user:
+      name: admin
+      group: admin
+      uid: 2048
+---
+- name: Add user
+  hosts: all
+  tasks:
+  - name: Create the user
+    user:
+      name: neymarsabin
+      expires: 1704067199
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - user:
+        name: 'admin'
+        state: absent
+    - group:
+        name: 'admin'
+        state: absent
+
+authorized keys
+---
+- hosts: all
+  tasks:
+  - name: Configure ssh keys
+    authorized_keys:
+      user: maria
+      state: present
+      key: | 
+      ssh_rsa AAA.....
+
+
+
+
+
+PROJECT DEMO
+-------------
+
+inventory file:
+----
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_ssh_pass=maria ansible_user=maria
+
+[web_servers]
+lamp-web ansible_host=172.20.1.100 ansible_ssh_pass=john ansible_user=john
+
+
+
+-- Additional data can be inserted into the inventory files
+
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword
+
+[web_servers]
+lamp-web ansible_host=172.20.1.100 ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+
+-- To copy keys to a host
+
+$ ssh-copy-id -i /home/thor/.ssh/maria maria@lamp-db
+
+$ ssh-copy-id -i /home/thor/.ssh/john john@lamp-web
+
+
+-- Update inventory to user the newly created private keys
+
+[db_servers]
+lamp-db ansible_host=172.20.1.101 ansible_ssh_private_key_file=/home/thor/.ssh/maria ansible_user=maria mysqlservice=mysqld mysql_port=3306 dbname=ecomdb dbuser=ecomuser dbpassword=ecompassword
+
+[web_servers]
+lamp-web ansible_host=172.20.1.100 ansible_ssh_private_key_file=/home/thor/.ssh/john ansible_user=john httpd_port=80 repository=https://github.com/kodekloudhub/learning-app-ecommerce.git
+
+--
+
+---
+- name: Deploy lamp stack application
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install common dependencies
+      yum:
+        name:
+          - libselinux-python
+          - libsemanage-python
+          - firewalld
+        state: installed
+
+
+
+
+
+
+
+Chap 5: Variables and Jinja2
+================================
+
+NB: extra-vars >Play vars > Host vars > Group vars
+
+
+/etc/ansible/hosts
+----
+web1 ansible_host=172.20.1.100
+web2 ansible_host=172.20.1.101
+web3 ansible_host=172.20.1.102
+
+[web_servers]
+web1
+web2
+web3
+
+[web_server:vars]
+dns_server=10.5.5.3
+
+
+
+---
+- name: Configure DNS Server
+  hosts: all
+  vars:
+    dns_server: 10.5.5.5
+  tasks:
+  - nsupdate:
+      server: '{{ dns_server }}'
+
+$ ansible-playbook playbook.yml --extra-vars "dns-server=10.5.5.6"
+
+
+- Variable scopes
+  Global variables can be passed using the --extra-vars
+  Other variables are local to the plays within which they are created
+
+- Use variables to retrieve the results of running commands
+
+---
+- name: Check /etc/hosts file
+  hosts: all
+  tasks:
+  - shell : cat /etc/hosts
+    register: result
+
+  - debug:
+      var: result
+
+
+NB : Register variables are under the hosts scope, they can be used within the next play if required
+
+
+Another way to view the output of a task, is to pass in the -v option when running the playbook
+
+$ ansible-playbook -i inventory playbook.yml
+
+-- Using symlinks
+
+---
+- hosts: all
+  gather_facts: no
+  tasks:
+    - name: stat module help to find the file info
+      stat:
+        path: /var/run
+      register: collector
+
+    # for your reference, check the outputs of these
+    - debug: 
+        var=collector.stat
+
+    # your code goes here...
+    - shell: echo "{{ collector.stat }}" > /tmp/by_ansible
+
+---
+- name: help me fix it playbook
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: alternative way to gather facts about remote host
+      setup: filter='ansible_dist*'
+      register: facts
+    - debug:
+        var: facts.ansible_facts.ansible_distribution
+    - shell: echo "{{facts.ansible_facts.ansible_distribution}}" > /tmp/output.txt
+
+
+
+-- Magic Variables
+
+Magic variables can be used to get variables defined on another host
+
+
+/etc/ansible/inventory
+--
+
+web1 ansible_host=172.20.1.100
+web2 ansible_host=172.20.1.101 dns_server=10.5.5.4
+web3 ansible_host=172.20.1.102
+
+
+---
+- name: Print dns server
+  hosts: all
+  tasks:
+  - debug:
+      msg : '{{ hostvars['web2'].dns_server }}'
+
+If facts are gathered, then you can gather facts about other host details
+
+ex: 
+
+msg: '{{ hostvars['web2'].ansible_facts.architecture}}'
+msg: '{{ hostvars['web2'].ansible_facts.devices}}'
+msg: '{{ hostvars['web2'].ansible_facts.mounts}}'
+msg: '{{ hostvars['web2'].ansible_facts.processor}}'
+
+
+Another magic variable from hostvars is groups, groups return all hosts within a given group name. It returns all groups a current host is part of
+
+/etc/ansible/hosts
+--
+
+web1 ansible_host=172.20.1.100
+web2 ansible_host=172.20.1.101 
+web3 ansible_host=172.20.1.102
+
+[web_servers]
+web1
+web2
+web3
+
+[americas]
+web1
+web2
+
+[asia]
+web3
+
+msg: '{{ group_names }}'
+web_servers
+americas
+
+inventory_hostname : is a magic variable that gives you the name that is configured for the host in the inventory file, and not the fqdn
+
+msg: '{{ inventory_hostname }}'
+
+---
+- hosts: node00.host
+  gather_facts: yes
+  tasks:
+  - shell: "echo  {{inventory_hostname}} {{ ansible_default_ipv4.address }} >> /etc/hosts"
+
+
+
+
+
+Jinja2 Basics (Templating)
+-------------
+
+Template
+---
+[mysqld]
+innodb-buffer-pool-size={{ pool_size }}
+datadir={{ datadir }}
+user={{ mysql_user }}
+symbolic-links={{ link_id }}
+port={{ mysql_port }}
+
+variables
+---
+pool_size: 5242880
+datadir: /var/lib/mysql
+mysql_user: mysql
+link_id: 0
+port: 3306
+
+
+String manipulation:
+
+The name is {{ my_name }} => The name is Bond
+The name is {{ my_name | upper }} => The name is BOND
+The name is {{ my_name | lower }} => the name is bond
+The name is {{ my_name | title }} => The name is Bond
+The name is {{ my_name | replace("Bond","Bourne") }} => The name is Bourne
+The name is {{ first_name | default("James") }} {{ my_name}} => The name is James Bond
+
+Filters - List and set
+
+{{ [1,2,3]|min }} => 1
+{{ [1,2,3]|max }} => 3
+{{ [1,2,3,3]|unique}} => 1,2,3
+{{ [1,2,3,4] | union ([4,5]) }} => 1,2,3,4,5
+{{ [1,2,3,4] | intersect([4,5]) }} => 4
+{{ 100 | random }} => random number
+{{["The","name","is","Bond"] | join(" ")}} => The name is Bond
+
+Loops
+
+{% for number in [0,1,2,3,4,5] %}
+{{ number}}
+{% endfor %}
+
+{% for ip  in name_servers %}
+nameserver {{ ip}}
+{% endfor %}
+
+{% for h in hosts -%}
+{{h.name}} {{ h.ip_address }}
+{% endfor %}
+
+Conditions
+
+{% for number in [0,1,2,3,4,5] %}
+  {% if number == 2 %}
+      {{ number }}
+  {% endif %}
+{% endfor %}
+
+
+
+
+
+
+
+Chap 7 : Playbook Flow
+-----------------------
+
+
+---
+- name: Install Softwares
+  hosts: all
+  vars: 
+    packages:
+      - name: nginx
+        required: True
+      - name: mysql
+        required: True
+      - name: apache
+        required: False
+  tasks:
+  - name: Install "{{ item.name }}" on Debian
+    apt:
+      name: "{{ item.name }}"
+      state: present
+    when: item.required == True
+    loop : "{{ packages }}"
+
+---
+- name: Check status of a service and mail if down
+  hosts: localhost
+  tasks:
+    - command: service httpd status
+      register: result
+
+    - mail:
+        to: admin@company.com
+        subject: Service Alert
+        body: Httpd Service is down
+        when: result.stdout.find('down') != -1
+
+
+---
+- name: Install apache
+  hosts: all
+  gather_facts: yes
+  tasks:
+    # your code goes here...
+    # - install apache2 when Ubuntu
+    # - install httpd when CentOS
+  - name: Install httpd if CentOS
+    yum:
+      name: httpd
+      state: installed
+    when: ansible_distribution == "CentoOS"
+
+  - name: Install apache if Ubuntu
+    apt:
+      name: apache2
+      state: installed
+    when: ansible_distribution == "Ubuntu"
+
+---
+- name: Check if git missing
+  hosts: web2
+  gather_facts: True
+  tasks:
+    - shell: dpkg -l git
+      register: check_if_git_installed
+      ignore_errors: true
+
+    - debug: var=check_if_git_installed
+    - shell: echo 'Oops, git is missing' > /tmp/is_git_installed.txt
+      when: check_if_git_installed.rc != 0
+
+    - shell: git --version > /tmp/is_git_installed.txt
+      when: check_if_git_installed.rc == 0
+
+
+---
+---
+- hosts: web2
+  gather_facts: no
+  vars:
+    remote_dest: /usr/local/bin/report_status.sh
+  tasks:
+    - stat:
+        path: "{{remote_dest}}"
+      register: file_status
+
+    - debug: var=file_status
+    - shell: echo "File report_status.sh is not executable, making it executable..." > /tmp/change.log
+      when: file_status.stat.exists and file_status.stat.executable == false
+
+    - name: Make the script executable
+      file:
+        path: "{{remote_dest}}"
+        mode: 0775
+
+Ansible Blocks
+--------------
+
+---
+- hosts: server1
+  tasks:
+    - block:
+        - name: Install MySQL
+          yum: 
+            name: mysql-server
+            state: present
+        - name: Start MySQL Service
+          service:
+            name: mysql-server
+            state: started
+      become_user= db-user
+      when: ansible_facts['distribution'] == 'CentOS'
+
+    - block:
+        - name: Install Nginx
+          yum: name=nginx state=present
+        - name: Start Nginx Service
+          service: name=nginx state=started
+
+      become_user: web-user
+      when: ansible_facts['distribution'] == 'CentOS'
+
+
+Error Handling
+
+---
+- hosts: server1
+  tasks:
+    - block:
+        - name: Install MySQL
+          yum: 
+            name: mysql-server
+            state: present
+        - name: Start MySQL Service
+          service:
+            name: mysql-server
+            state: started
+      become_user= db-user
+      when: ansible_facts['distribution'] == 'CentOS'
+      rescue:
+        - mail:
+            to: admin@company.com
+            subject: Installation Failed
+            body: DB Install Failed at {{ ansible_failed_task.name}}
+      always
+        - mail:
+            to: admin@company.com
+            subject: Installation Status
+            body: DB Install Status - {{ ansible_failed_result }}
